@@ -1,0 +1,13 @@
+pycircular
+statsmodels
+seaborn
+pandas
+numpy
+matplotlib
+scipy
+pymatreader
+tqdm
+mne
+networkx
+joblib
+tensorpac
