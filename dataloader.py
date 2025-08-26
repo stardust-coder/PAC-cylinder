@@ -294,3 +294,16 @@ def load_marmoset_ecog(name="Ji",ind=1):
     
     raw, onsets = load_marmoset_ecog_raw(name,ind) #(96, 508864)
     return raw, onsets
+
+
+def artificial_PAC_data_Tort():
+    from tensorpac.signals import pac_signals_tort
+    n_epochs = 20    # number of trials
+    sf = 1000.        # sampling frequency
+    T = 0.5          # one trials time (sec)
+    n_times = sf * T # number of time points
+
+    # Create artificially coupled signals using Tort method :
+    data, time = pac_signals_tort(f_pha=10, f_amp=100, noise=2, n_epochs=n_epochs, 
+                                dpha=10, damp=10, sf=sf, n_times=n_times)
+    return data

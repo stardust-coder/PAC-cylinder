@@ -7,7 +7,7 @@ def MLE(data):
     '''
     data : numpy array [[theta,x],[theta,x], ...]
     '''
-    mu = data[:,0].mean().item()
+    mu = np.angle(np.mean(np.exp(1j * data[:,0])))
     data = data.tolist()
 
     def negative_log_likelihood(params):

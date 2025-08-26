@@ -5,7 +5,9 @@ from tensorpac import Pac
 from tensorpac.utils import PSD
 from tensorpac.signals import pac_signals_tort
 
-from dataloader import chennu_phase, chennu_envelope, chennu_raw_onedim, process_ecog_data, load_marmoset_ecog
+from dataloader import chennu_phase, chennu_envelope, chennu_raw_onedim
+from dataloader import process_ecog_data, load_marmoset_ecog
+from dataloader import artificial_PAC_data_Tort
 import pdb
 from constant import get_eeg_filenames, get_electrode_names
 import numpy as np
