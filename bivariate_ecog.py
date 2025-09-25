@@ -13,7 +13,7 @@ from constant import get_eeg_filenames, get_electrode_names
 import numpy as np
 import pandas as pd
 import model
-import model.johnson_and_wehrly
+import PAC.model.Johnson_and_Wehrly
 import model.cylinder_bigraph
 import warnings
 warnings.filterwarnings("ignore")
@@ -25,7 +25,7 @@ from Gam_vM_MLE import MLE, MI, sample_from_GM
 ### Model
 def JW3(P, A):
     ### MLE for JW cylinder(1978)
-    M = model.johnson_and_wehrly.JW_cylinder3()
+    M = model.Johnson_and_Wehrly.JW_cylinder3()
     ch = 60
     M.mle((P[:,ch],A[:,ch]))
     M.plot()
@@ -33,7 +33,7 @@ def JW3(P, A):
 def JW5(P, A):
     ### MLE for JW cylinder(1978)
     # M = model.johnson_and_wehrly.Uniform_Normal()
-    M = model.johnson_and_wehrly.Uniform_Gamma()
+    M = model.Johnson_and_Wehrly.Uniform_Gamma()
     ch = 60
     M.mle((P[:,ch],A[:,ch]))
     M.plot()

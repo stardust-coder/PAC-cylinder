@@ -1,5 +1,6 @@
 import numpy as np
 import scipy
+import matplotlib.pyplot as plt
 
 # ヒルベルト変換
 def hilbert_transform(signal, dt=1e-4):
@@ -153,3 +154,94 @@ def joint_plot(x,y,name="joint_plot"):
 
 def wrap_to_pi(angle):
     return np.mod(angle + np.pi, 2 * np.pi) - np.pi
+
+
+def _rank_average(x: np.ndarray) -> np.ndarray:
+    """
+    1D 配列 x の平均順位（ties は平均）を 1..n の実数で返す。
+    SciPy/pandas なしで動く実装。
+    """
+    n = x.size
+    order = np.argsort(x, kind="mergesort")          # 安定ソート
+    ranks = np.empty(n, dtype=float)
+    xs = x[order]
+    # 同値ブロックの境界を見つける
+    boundaries = np.concatenate(([0], np.nonzero(np.diff(xs))[0] + 1, [n]))
+    # 各ブロックに平均順位を付与
+    for b0, b1 in zip(boundaries[:-1], boundaries[1:]):
+        # 1-based rank の範囲: [b0+1, b1]
+        avg = (b0 + 1 + b1) / 2.0
+        ranks[order[b0:b1]] = avg
+    return ranks
+
+def rank_uniform_2d(X: np.ndarray, *, a: float = 0.0, method: str = "average",
+                    seed: int | None = None) -> np.ndarray:
+    """
+    Nx2 の実数配列 X を、列ごとに rank-based に [0,1] へ写像。
+    返り値 U は Nx2 で、各列が (ほぼ) Unif(0,1) マージナル。
+
+    パラメータ
+    ----------
+    X : (N,2) array-like
+        入力データ（NaN は不可。必要なら事前に除去/補完してください）
+    a : float, default 0.0
+        正規化 u = (rank - a) / (n + 1 - 2a) の a。
+        代表値: a=0     -> Weibull (rank/(n+1))
+               a=0.5   -> Hazen  ((rank-0.5)/n)
+               a=3/8   -> Blom   ((rank-3/8)/(n+1/4))
+    method : {"average","random"}, default "average"
+        ties の扱い。
+        - "average": 同値への平均順位（推奨）
+        - "random" : ties を微小ノイズでランダムに解消して通常順位にする
+    seed : int | None
+        method="random" の乱数シード
+
+    戻り値
+    ------
+    U : (N,2) ndarray
+        各列が [0,1] に写像されたデータ
+    """
+    X = np.asarray(X, dtype=float)
+    if X.ndim != 2 or X.shape[1] != 2:
+        raise ValueError("X は形状 (N,2) の配列である必要があります。")
+    if np.isnan(X).any():
+        raise ValueError("X に NaN が含まれています。除去/補完してください。")
+
+    n = X.shape[0]
+    if method not in {"average", "random"}:
+        raise ValueError("method は 'average' または 'random'。")
+
+    U = np.empty_like(X, dtype=float)
+
+    if method == "average":
+        r1 = _rank_average(X[:, 0])
+        r2 = _rank_average(X[:, 1])
+    else:  # random
+        rng = np.random.default_rng(seed)
+        # 同値を壊すために非常に小さなノイズを加えて通常順位
+        eps1 = (np.finfo(float).eps ** 0.5) * rng.standard_normal(n)
+        eps2 = (np.finfo(float).eps ** 0.5) * rng.standard_normal(n)
+        r1 = np.argsort(np.argsort(X[:, 0] + eps1, kind="mergesort"), kind="mergesort").astype(float) + 1.0
+        r2 = np.argsort(np.argsort(X[:, 1] + eps2, kind="mergesort"), kind="mergesort").astype(float) + 1.0
+
+    denom = (n + 1.0 - 2.0 * a)
+    U[:, 0] = (r1 - a) / denom
+    U[:, 1] = (r2 - a) / denom
+
+    # 数値誤差でわずかに [0,1] を超えるのを防止
+    U = np.clip(U, 0.0, 1.0)
+    return U
+
+def scatter_unit_square(U: np.ndarray, s: float = 8.0, filename: str = "scatter_unit_square.png"):
+    """
+    rank_uniform_2d の出力 U (N,2) を単位正方形に散布図表示。
+    """
+    if U.ndim != 2 or U.shape[1] != 2:
+        raise ValueError("U は形状 (N,2) の配列である必要があります。")
+    plt.figure(figsize=(5, 5))
+    plt.scatter(U[:, 0], U[:, 1], s=s)
+    plt.xlim(0, 1); plt.ylim(0, 1)
+    plt.xlabel("U1"); plt.ylabel("U2"); plt.title("Rank-based scatter on [0,1]^2")
+    plt.gca().set_aspect('equal', adjustable='box')
+    plt.tight_layout()
+    plt.savefig(filename)

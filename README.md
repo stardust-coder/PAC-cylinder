@@ -6,7 +6,14 @@
 
 ## Usage
 
-### MLE on ECoG dataset
+### 1-1. MLE on bivariate simulation dataset
+
+
+### 1-2. MLE on trivariate simulation dataset
+
+
+
+### 2-1. MLE on ECoG dataset
 Comment out each paragraph you want to use before running the script.
 
 [Lists of Paragraph]
@@ -22,13 +29,19 @@ Comment out each paragraph you want to use before running the script.
 
 Then run
 ```bash
-python experiment.py
+python bivariate_ecog.py
 ```
 
-### Score matching on simulation dataset
-The ground truth model is Gamma von Mises. Run to compare score matching and MLE.
-```bash
-python score_matching.py
+### 2-2. MLE on trivariate real dataset
+```
+Coming soon
+```
+
+
+### 3-1. EM algorithm of MoGGM (Mixture of Generalized Gamma von Mises)
+```
+python Gam_vM_EM.py
+python GGam_v_EM.py
 ```
 
 
