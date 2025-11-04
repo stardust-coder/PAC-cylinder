@@ -11,6 +11,22 @@
 
 ### 1-2. MLE on trivariate simulation dataset
 
+Ours
+```
+python trivariate_sim_MLE.py
+```
+
+[Nadalin et al., 2019]
+```
+python -m main.GLMCFC
+```
+
+### 1-3. Compare our method with existing methods
+```
+python trivariate_sim_comparison.py
+```
+
+
 
 
 ### 2-1. MLE on ECoG dataset

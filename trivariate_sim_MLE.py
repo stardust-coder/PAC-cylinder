@@ -1,6 +1,7 @@
 import numpy as np
 import scipy
 import scipy.stats as st
+from scipy.stats import kendalltau
 import matplotlib.pyplot as plt
 from model.Jones_Pewsey import JonesPewsey, JonesPewseyPsi
 from model.copulas import *
@@ -10,13 +11,14 @@ from scipy.special import lpmn, lpmv, gamma, gammaln
 from tqdm import tqdm
 from dataloader import nadalin
 from dataloader import hilbert_phase, hilbert_envelope, bandpass_filter
+from utils import scatter_unit_square, rank_uniform_2d
 
 def sample_from_Nadalin():
     pac_mod = 1.0
     aac_mod = 0.0
     sim_method = "pink"
     rng = np.random.default_rng(12345)
-    V1, Vlo, Vhi, t = nadalin(pac_mod, aac_mod,sim_method, rng)
+    V1, Vlo, Vhi, t = nadalin(pac_mod, aac_mod, sim_method, rng)
     plt.plot(t,V1,label="V")
     plt.plot(t,Vlo, label="V_low")
     plt.plot(t,Vhi, label="V_high")
@@ -167,12 +169,12 @@ for _ in tqdm(range(1)):
         plt.figure(figsize=(5,5))
         plt.scatter(syn_data[:,1],syn_data[:,2], color="red")
         plt.savefig("scatter_x1_vs_x2.png")
-        from utils import scatter_unit_square, rank_uniform_2d
-        from scipy.stats import kendalltau
-        scatter_unit_square(rank_uniform_2d(syn_data[:,[1,2]]))
+        
         print(kendalltau(syn_data[:,1], syn_data[:,2], method="asymptotic")[0])
-        # scatter_unit_square(rank_uniform_2d(con_syn_data[:,[1,2]]), filename="scatter_unit_square_conditional.png")
         # print(kendalltau(con_syn_data[:,1], con_syn_data[:,2], method="asymptotic")[0])
+        # scatter_unit_square(rank_uniform_2d(syn_data[:,[1,2]]))
+        # scatter_unit_square(rank_uniform_2d(con_syn_data[:,[1,2]]), filename="scatter_unit_square_conditional.png")
+        
         # import pdb; pdb.set_trace()
 
         #### kappaとalphaをまずは推定.
