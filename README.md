@@ -11,6 +11,8 @@
 
 ### 1-2. MLE on trivariate simulation dataset
 
+The simulation is conducted on synthetic time series data generated from pink noises and artificial modulation on PAC and AAC, completely following Nadalin et al.
+
 Ours
 ```
 python trivariate_sim_MLE.py
@@ -22,14 +24,14 @@ python -m main.GLMCFC
 ```
 
 ### 1-3. Compare our method with existing methods
-```
-python trivariate_sim_comparison.py
-```
+
+`trivariate_sim_comparison.py` compares GLM-CFC, Alowφlow model with the proposed method.
+
+`trivariate_sim_correlation.py` compares classical MVL/correlation with the proposed method.
 
 
 
-
-### 2-1. MLE on ECoG dataset
+### 2-1. MLE on real dataset
 Comment out each paragraph you want to use before running the script.
 
 [Lists of Paragraph]
@@ -49,9 +51,13 @@ python bivariate_ecog.py
 ```
 
 ### 2-2. MLE on trivariate real dataset
-```
-Coming soon
-```
+
+`trivariate_real_ecog.py` loads marmoset ECoG dataset.
+
+`trivariate_real_humanMEA.py` uses Human seizure MEA dataset from Nadalin et al. It compares the proposed method and the classical MVL/correlation.
+
+`trivariate_real_rodentLFP.py` is meant to be same as `trivariate_real_humanMEA.py` but with different dataset.
+
 
 
 ### 3-1. EM algorithm of MoGGM (Mixture of Generalized Gamma von Mises)

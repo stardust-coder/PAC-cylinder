@@ -23,10 +23,11 @@ def count_params(obj):
 
 ########################################################################################################################
 
-def simulate_Nadalin(pac_mod = 1.0, aac_mod = 0.0):
+def simulate_Nadalin(pac_mod = 1.0, aac_mod = 0.0, seed=0, has_plot=False):
+    rng = np.random.default_rng(seed)
     sim_method = "pink"
-    rng = np.random.default_rng()
     V1, Vlo, Vhi, t = nadalin(pac_mod, aac_mod, sim_method, rng)
+    
     raw = V1
     data_lf = bandpass_filter(raw, low_cut=4, high_cut=7, fs=500)  # LF band-pass 
     data_hg = bandpass_filter(raw, low_cut=100, high_cut=140, fs=500)  # HG band-pass
@@ -34,13 +35,74 @@ def simulate_Nadalin(pac_mod = 1.0, aac_mod = 0.0):
     X1 = hilbert_envelope(data_lf)
     X2 = hilbert_envelope(data_hg)
     theta = hilbert_phase(data_lf)
+    import pdb; pdb.set_trace()
+
+    if has_plot:
+        # --- 1枚目：raw + low + high を 1つの figure で ---
+        fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(15, 10), sharex=True)
+
+        # --- 上：raw signals ---
+        ax1.plot(t, V1,  label="V",color="blue")
+        ax1.plot(t, Vhi, label="V_high",color="green")
+        ax1.plot(t, Vlo, label="V_low",color="orange")
+        ax1.set_ylabel("raw signal")
+        ax1.legend(loc="upper right")
+
+        # --- 中：low freq ---
+        ax2.plot(t, data_lf, label="low frequency bandpass", color="blue")
+        ax2.plot(t, X1,      label="low amplitude (X1)",     color="red")
+        ax2.set_ylabel("low band")
+        ax2.legend(loc="upper right")
+
+        # --- 下：high freq ---
+        ax3.plot(t, data_hg, label="high frequency bandpass", color="blue")
+        ax3.plot(t, X2,      label="high amplitude (X2)",     color="red")
+        ax3.set_ylabel("high band")
+        ax3.set_xlabel("t")
+        ax3.legend(loc="upper right")
+
+        fig.tight_layout()
+        fig.savefig("combined.png")
+        plt.close(fig)
+
+        # --- 1枚目：raw + low + high を 1つの figure で ---
+        fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(15, 10), sharex=True)
+
+        # --- 上：raw signals ---
+        ax1.plot(t[:200], V1[:200],  label="V",color="blue")
+        ax1.plot(t[:200], Vhi[:200], label="V_high",color="green")
+        ax1.plot(t[:200], Vlo[:200], label="V_low",color="orange")
+        ax1.set_ylabel("raw signal")
+        ax1.legend(loc="upper right")
+
+        # --- 中：low freq ---
+        ax2.plot(t[:200], data_lf[:200], label="low frequency bandpass", color="blue")
+        ax2.plot(t[:200], X1[:200],      label="low amplitude (X1)",     color="red")
+        ax2.set_ylabel("low band")
+        ax2.legend(loc="upper right")
+
+        # --- 下：high freq ---
+        ax3.plot(t[:200], data_hg[:200], label="high frequency bandpass", color="blue")
+        ax3.plot(t[:200], X2[:200],      label="high amplitude (X2)",     color="red")
+        ax3.set_ylabel("high band")
+        ax3.set_xlabel("t")
+        ax3.legend(loc="upper right")
+
+        fig.tight_layout()
+        fig.savefig("combined_zoomed.png")
+        plt.close(fig)
+
     
     mu_true = 0.0
-    theta = (theta - mu_true + np.pi) % (2*np.pi) - np.pi # mu=0前提に合わせる（ここではmu_true=0なので不要だが、一般には以下の1行でOK）
-    
+    theta = (theta - mu_true + np.pi) % (2*np.pi) - np.pi     # mu=0前提に合わせる（ここではmu_true=0なので不要だが、一般にはこの1行でOK）
+
     syn_data = np.column_stack((theta, X1, X2))
     syn_data = syn_data[::10,:]
+
+
     return syn_data
+
+
 
 def wrap_angle(theta):
     """角度を [-pi, pi] に正規化"""
@@ -233,8 +295,82 @@ def run_fit_and_metrics_general(
             mu_full=mu_full, mu_null=mu_null
         )
 
+def plot_tail_dependence_by_theta(theta, X1, X2, nbins=6, q=0.95, tail='upper',
+                                  q_low=None, fname=None):
+    """
+    theta, X1, X2: 同じ長さの ndarray
+    nbins       : theta のビン数
+    q           : 上側 tail の分位点（例: 0.95）
+    tail        : 'upper' または 'lower'
+    q_low       : 下側 tail 用の分位点（None なら 1-q を使用）
+    fname       : 画像保存パス（None なら保存しない）
+    """
+    assert tail in ('upper', 'lower'), "tail must be 'upper' or 'lower'"
+    if q_low is None:
+        q_low = 1 - q  # 下側用のデフォルト閾値
+
+    edges = np.linspace(-np.pi, np.pi, nbins + 1)
+    centers = 0.5 * (edges[:-1] + edges[1:])
+
+    nrows = 2
+    ncols = int(np.ceil(nbins / nrows))
+    plt.figure(figsize=(6 * ncols, 5.5 * nrows))
+
+    # 各ビンの推定 λ を格納（返り値）
+    lambdas = []
+
+    for k in range(nbins):
+        mask = (theta >= edges[k]) & (theta < edges[k + 1])
+        if not np.any(mask):
+            lambdas.append(np.nan)
+            continue
+
+        x1b, x2b = X1[mask], X2[mask]
+
+        # PIT（順位変換：ビン内ランクで U, V を作る）
+        r1 = np.argsort(np.argsort(x1b))
+        r2 = np.argsort(np.argsort(x2b))
+        U = (r1 + 1) / (len(x1b) + 1)
+        V = (r2 + 1) / (len(x2b) + 1)
+
+        if tail == 'upper':
+            thr = q
+            tail_mask = (U > thr) & (V > thr)
+            p_joint = np.mean(tail_mask)
+            p_cond  = np.mean(U > thr)
+            lam = p_joint / (p_cond + 1e-12)
+            lam_label = r"λ_U"
+        else:  # 'lower'
+            thr = q_low
+            tail_mask = (U < thr) & (V < thr)
+            p_joint = np.mean(tail_mask)
+            p_cond  = np.mean(U < thr)
+            lam = p_joint / (p_cond + 1e-12)
+            lam_label = r"λ_L"
+
+        lambdas.append(lam)
+
+        # プロット
+        ax = plt.subplot(nrows, ncols, k + 1)
+        ax.scatter(U, V, s=36, alpha=0.65)
+        ax.scatter(U[tail_mask], V[tail_mask], s=36, alpha=0.99, color='r')
+        if tail == 'upper':
+            ax.axvline(thr, ls='--', color='gray'); ax.axhline(thr, ls='--', color='gray')
+        else:
+            ax.axvline(thr, ls='--', color='gray'); ax.axhline(thr, ls='--', color='gray')
+        ax.set_title(f"θ ≈ {centers[k]:+.2f} rad\n{lam_label}≈{lam:.2f}")
+        ax.set_xlim(0, 1); ax.set_ylim(0, 1)
+        ax.set_xlabel("U"); ax.set_ylabel("V")
+
+    plt.tight_layout()
+    if fname is not None:
+        plt.savefig(fname, bbox_inches='tight', dpi=150)
+    plt.show()
+
+    return np.array(lambdas)
+
 if __name__ == "__main__":
-    pac_mod, aac_mod= 5.0, 1.0
+    pac_mod, aac_mod= 1.0, 0.0
     syn_data = simulate_Nadalin(pac_mod=pac_mod, aac_mod=aac_mod) #theta, X1, X2
     print("Data shape:", syn_data.shape)
     my_df = pd.DataFrame(syn_data, columns=["theta", "x1", "x2"])
@@ -264,12 +400,21 @@ if __name__ == "__main__":
     plt.show()
     plt.savefig(f"sample{pac_mod}-{aac_mod}-x2.png")
 
-    my_copula = frank_c
+    theta, X1, X2 = syn_data[:,0], syn_data[:,1], syn_data[:,2]
+    plot_tail_dependence_by_theta(theta, X1, X2, nbins=6, q=0.9, fname="tail_upper.png",tail='upper')
+    plot_tail_dependence_by_theta(theta, X1, X2, nbins=6, q=0.9, fname="tail_lower.png",tail='lower')
+    
+    # my_copula = gumbel_c_phi_wrapper
+    # my_copula = clayton_c
+    my_copula = t_c_phi_wrapper
+
 
     def fit_func_full(df, **kwargs):
         data = df[["theta", "x1", "x2"]].values
         (params, phi_hat) = MLE(data, copula_func=my_copula)
         kappa, alpha, beta1, beta2 = params
+        # phi_hat = [10.108885353117861,8.849005186242268,8.027959164683262,8.985379821591431,9.361487367496256,9.165217202040168]
+        # phi_hat = [8.196156426204839,8.018286752449997,9.191966259744072,8.905208471331752,8.089576697051593,7.492467070514661]
         return dict(kappa=kappa, alpha=alpha, beta=(beta1, beta2), phi=phi_hat)
 
     def fit_func_null(df, **kwargs):
@@ -295,7 +440,7 @@ if __name__ == "__main__":
 
         def nll_phi(phi): # φ は自由推定
             return -log_likelihood_pred_model(
-                data, gaussian_c, kappa0, alpha_hat, (beta1_0, beta2_0), phi
+                data, my_copula, kappa0, alpha_hat, (beta1_0, beta2_0), phi
             )
         from scipy.optimize import minimize
         res = minimize(lambda p: nll_phi(p), x0=np.array([0.0]), method="L-BFGS-B")
@@ -305,7 +450,20 @@ if __name__ == "__main__":
 
     def loglik_func(df, kappa, alpha, beta, phi, **kwargs):
         data = df[["theta", "x1", "x2"]].values
-        return log_likelihood_pred_model(data, my_copula, kappa, alpha, beta, phi)
+
+        def _condata(i):
+            nbins = 6
+            edges = np.linspace(-np.pi, np.pi, nbins+1)
+            begin,end = edges[i], edges[i+1]
+            return df.query("@begin <= theta < @end").to_numpy()
+
+        if type(phi) == list:
+            assert len(phi) == 6
+            L_ = [log_likelihood_pred_model(_condata(i), my_copula, kappa, alpha, beta, x) for i,x in enumerate(phi)]
+            print(L_)
+            return sum(L_)
+        else:
+            return log_likelihood_pred_model(data, my_copula, kappa, alpha, beta, phi)
 
     res_existing = run_fit_and_metrics_general(
         df=my_df,
@@ -317,15 +475,27 @@ if __name__ == "__main__":
         loglik_func=None
     )
 
+    res_existing2 = run_fit_and_metrics_general(
+        df=my_df,
+        design_matrix_full=design_matrix_Plow_Alow,
+        design_matrix_null=design_matrix_Plow,       
+        model_type="gamma_glm",
+        fit_func_full=None,
+        fit_func_null=None,
+        loglik_func=None
+    )
+
     res_ours = run_fit_and_metrics_general(
         df=my_df,
         model_type="custom",
         fit_func_full=fit_func_full,
-        fit_func_null=fit_func_null_no_phase,
+        fit_func_null=fit_func_null,
         loglik_func=loglik_func
     )
 
     res = res_existing
+    print(f"AIC_full={res['AIC_full']:.3f}, AIC_null={res['AIC_null']:.3f}, ΔAIC={res['Delta_AIC_null_to_full']:.3f}")
+    res = res_existing2
     print(f"AIC_full={res['AIC_full']:.3f}, AIC_null={res['AIC_null']:.3f}, ΔAIC={res['Delta_AIC_null_to_full']:.3f}")
     res = res_ours
     print(f"AIC_full={res['AIC_full']:.3f}, AIC_null={res['AIC_null']:.3f}, ΔAIC={res['Delta_AIC_null_to_full']:.3f}")

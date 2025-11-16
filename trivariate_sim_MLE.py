@@ -33,21 +33,55 @@ def sample_from_Nadalin():
     plt.close()
     return V1
 
-def simulate_Nadalin():
-    raw = sample_from_Nadalin()
+def simulate_Nadalin(pac_mod = 1.0, aac_mod = 0.0, seed=0, has_plot=False):
+    rng = np.random.default_rng(seed)
+    sim_method = "pink"
+    V1, Vlo, Vhi, t = nadalin(pac_mod, aac_mod, sim_method, rng)
+
+    raw = V1
     data_lf = bandpass_filter(raw, low_cut=4, high_cut=7, fs=500)  # LF band-pass 
     data_hg = bandpass_filter(raw, low_cut=100, high_cut=140, fs=500)  # HG band-pass
     
     X1 = hilbert_envelope(data_lf)
     X2 = hilbert_envelope(data_hg)
     theta = hilbert_phase(data_lf)
-    
-    mu_true = 0.0
-    theta = (theta - mu_true + np.pi) % (2*np.pi) - np.pi # mu=0前提に合わせる（ここではmu_true=0なので不要だが、一般には以下の1行でOK）
-    
-    syn_data = np.column_stack((theta, X1, X2))
-    syn_data = syn_data[::10,:]
-    return syn_data
+
+    if has_plot:
+        # --- 1枚目：raw + low + high を 1つの figure で ---
+        fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(15, 10), sharex=True)
+
+        # --- 上：raw signals ---
+        ax1.plot(t, V1,  label="V")
+        ax1.plot(t, Vlo, label="V_low")
+        ax1.plot(t, Vhi, label="V_high")
+        ax1.set_ylabel("raw signal")
+        ax1.legend(loc="upper right")
+
+        # --- 中：low freq ---
+        ax2.plot(t, data_lf, label="low frequency bandpass", color="blue")
+        ax2.plot(t, X1,      label="low amplitude (X1)",     color="red")
+        ax2.set_ylabel("low band")
+        ax2.legend(loc="upper right")
+
+        # --- 下：high freq ---
+        ax3.plot(t, data_hg, label="high frequency bandpass", color="blue")
+        ax3.plot(t, X2,      label="high amplitude (X2)",     color="red")
+        ax3.set_ylabel("high band")
+        ax3.set_xlabel("t")
+        ax3.legend(loc="upper right")
+
+        fig.tight_layout()
+        fig.savefig("combined.png")
+        plt.close(fig)
+
+        # --- 2枚目：raw signal zoom ---
+        plt.figure(figsize=(15, 6))
+        plt.plot(t[:100], V1[:100],  label="V")
+        plt.plot(t[:100], Vlo[:100], label="V_low")
+        plt.plot(t[:100], Vhi[:100], label="V_high")
+        plt.legend()
+        plt.savefig("raw_signal_zoom.png")
+        plt.close()
 
 
 def simulate_CLL(

@@ -1,12 +1,18 @@
-import numpy as np
-from scipy import signal
 import sys
 sys.path.append(".")
-from constant import get_eeg_filenames, get_electrode_names
-import utils
+
+import numpy as np
+import pandas as pd
+import scipy
+from scipy import signal
+from scipy.io import loadmat
 import mne
 from mne.viz import plot_alignment, snapshot_brain_montage
-import pandas as pd
+
+from constant import get_eeg_filenames, get_electrode_names
+import utils
+
+
 
 ind_list, FILE_NAME_LIST = get_eeg_filenames()
 
@@ -270,7 +276,7 @@ def process_ecog_data(data, fs, stimulus_onsets, baseline_start=-0.1, baseline_e
     return data_lf, data_hg, phase_lf, envelope_hg, data_baseline_corrected
 
 def load_marmoset_ecog(name="Ji",ind=1):
-    import scipy
+    
     def load_marmoset_ecog_raw(name,ind):
         length = -1
         if name == "Ji":
@@ -367,8 +373,12 @@ def nadalin(pac_mod: float,
     fNQ = Fs / 2.0
     N = int(20 / dt + 4000)  # 端のフィルタ歪みを後で捨て、正味 20s にする
 
+    # 共通因子
+    rho_ = 0.0
+    common = make_pink_noise(1.0, N, dt, rng)
+
     # ---- 低周波バンドを作る（ピンクノイズ→FIRLS→filtfilt）
-    Vpink = make_pink_noise(1.0, N, dt, rng)
+    Vpink = make_pink_noise(1.0, N, dt, rng) * (1-rho_) + common * rho_
     Vpink -= Vpink.mean()
 
     def _firls_bandpass(locut, hicut, order_scale):
@@ -394,7 +404,7 @@ def nadalin(pac_mod: float,
     Vlo = signal.filtfilt(bL, aL, Vpink)
 
     # ---- 高周波バンド用のピンクノイズを作り直し
-    Vpink = make_pink_noise(1.0, N, dt, rng)
+    Vpink = make_pink_noise(1.0, N, dt, rng)  * (1-rho_) + common * rho_
     Vpink -= Vpink.mean()
 
     # High: 
@@ -431,36 +441,44 @@ def nadalin(pac_mod: float,
         Vhi = Vhi * (1.0 + pac_mod * s)
         Vhi = Vhi * (1.0 + aac_mod * AmpLo / AmpLo.max())
 
-    elif sim_method == 'spiking':
-        # スパイキング・プロセスで高周波を生成（MATLAB と同じ式）
-        N = int(20 / dt)
-        t = np.arange(1, N + 1) * dt
-        Alo = 1.0 + (np.sin(2 * np.pi * t * 0.1) + 1.0) / 2.0
-        Philo = np.pi * signal.sawtooth(2 * np.pi * t * 4)  # [-π, π]三角波
-        Vlo = Alo * np.cos(Philo)
-
-        Philo_star = np.pi + Alo * np.pi
-        sigma = 0.01
-        tri = signal.sawtooth(Philo - Philo_star, width=0.5)  # [-1, 1] の三角波
-        lam = (1.0 / np.sqrt(2 * np.pi * sigma)) * np.exp(-(1.0 + tri) ** 2 / (2 * sigma ** 2))
-        lam = 0.001 + 0.3 * lam / lam.max()
-        Vhi = rng.binomial(1, lam).astype(float)
-
-        Vlo = Vlo + 0.1 * rng.standard_normal(Vlo.size)
-        Vhi = Vhi + 0.1 * rng.standard_normal(Vhi.size)
-
     else:
-        raise ValueError("sim_method must be 'GLM', 'pink', or 'spiking'.")
+        raise ValueError("sim_method must be 'GLM' or 'pink'.")
 
-    # ---- 観測信号を作ってから、もう一度バンド分け（spiking 以外）
-    if sim_method != 'spiking':
-        Vpink2 = make_pink_noise(1.0, N, dt, rng)
-        noise_level = 0.01
-        V1 = Vlo + Vhi + noise_level * Vpink2
+    Vpink2 = make_pink_noise(1.0, N, dt, rng)
+    noise_level = 0.00
 
-        # Low:（再び抽出）
-        Vlo = signal.filtfilt(bL, aL, V1)
-        # High: （再び抽出）
-        Vhi = signal.filtfilt(bH, aH, V1)
+    ###rare spike factor
+    n_spikes = 0                 # まずは 20–50 程度に
+    spike_halfw = int(0.015*Fs)   # 半幅 ~15ms（合計 ~30ms）; Low も少し拾うならもう少し大きく
+    theta_spk = np.zeros(N)
+
+    for idx in rng.choice(N, n_spikes, replace=False):
+        i0 = max(0, idx - spike_halfw)
+        i1 = min(N, idx + spike_halfw)
+        theta_spk[i0:i1] += np.hanning(i1 - i0)
+    
+    Vlo += theta_spk
+    Vhi += theta_spk
+
+    V1 = Vlo + Vhi + noise_level * Vpink2
+
+    # Low:（再び抽出）
+    Vlo = signal.filtfilt(bL, aL, V1)
+    # High: （再び抽出）
+    Vhi = signal.filtfilt(bH, aH, V1)
 
     return V1, Vlo, Vhi, t
+
+def load_nadalin_human_seizure(patient="A"):
+    mat = loadmat('/home/sukeda/data/Nadalin_human_seizure/Patient_Data.mat')
+    print("Loaded Human Seizure Dataset from Nadalin et al.(2019)!")
+    print("Keys:", mat.keys())  # 中の変数名一覧
+    print("Sampling frequency:", mat["Fs"])
+    return mat["PatientA"], mat["PatientB"]
+
+def load_nadalin_rodent(individual="08102017", intervention="pre"):
+    mat = loadmat(f'/home/sukeda/data/Nadalin_roden/{individual}/time_data_{intervention}_45sec.mat')
+    print(f"Loaded Rodent dataset ({individual}, {intervention}) from Nadalin et al.(2019)!")
+    print("Keys:", mat.keys())  # 中の変数名一覧
+    print("Sampling frequency:", mat["Fs"])
+    return mat

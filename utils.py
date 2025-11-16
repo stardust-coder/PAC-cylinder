@@ -245,3 +245,32 @@ def scatter_unit_square(U: np.ndarray, s: float = 8.0, filename: str = "scatter_
     plt.gca().set_aspect('equal', adjustable='box')
     plt.tight_layout()
     plt.savefig(filename)
+
+
+
+from scipy.stats import pearsonr
+def MVL(phase_data, amplitude_data):
+    """
+    Mean Vector Length (MVL) を計算する関数
+    phase_data: 位相データ（ラジアン単位）
+    amplitude_data: 振幅データ（同サイズ）
+    """
+    phase_data = np.array(phase_data)
+    amplitude_data = np.array(amplitude_data)
+
+    # 振幅で重み付けした複素数ベクトル
+    complex_vector = amplitude_data * np.exp(1j * phase_data)
+    # 平均ベクトルの長さ（正規化）
+    mvl = np.abs(np.mean(complex_vector)) / np.mean(amplitude_data)
+    return mvl
+
+def Pearson(data1, data2):
+    """
+    ピアソン相関係数を計算する関数
+    data1, data2: 数値データ列（同サイズ）
+    """
+    data1 = np.array(data1)
+    data2 = np.array(data2)
+
+    r, _ = pearsonr(data1, data2)
+    return r
